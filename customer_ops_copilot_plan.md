@@ -473,14 +473,16 @@ For subsequent work, replace `Phase 1` with the requested phase and its scope. A
 
 ## 15. Progress record
 
-Current phase: not started.
+Current phase: Phase 1 complete.
 
-Completed phases: none.
+Completed phases: Phase 1 deterministic foundation.
 
-Last validation results: not run.
+Completed work: installable Python package; FastAPI `GET /health`; SQLite models with foreign keys and a unique per-order refund constraint; explicit seeded database initializer; 100 reproducible synthetic customers and 300 orders; versioned policy documents; strict Pydantic contracts and trusted demo contexts; scoped read and proposal tools; deterministic eligibility rules; transactional approval and rejection service; structured audit events; and offline regression tests.
+
+Last validation results: `py -m pytest` completed with 12 passed in 1.45s. The explicit SQLite initializer was also run against a fresh database and verified 100 customers and 300 orders. `/health` returned `{"status":"ok"}` through FastAPI's test client.
 
 Open decisions: first hosted provider and model; optional local model after hardware review.
 
-Known blockers: none identified before repository inspection.
+Known blockers: no Python 3.12 interpreter was available locally. Validation used Python 3.14; project metadata requires Python 3.12 or newer.
 
-Next task: inspect the repository and implement the Phase 1 deterministic vertical slice.
+Next task: implement Phase 2 isolated LLM experiments, beginning with a capability-explicit provider interface and deterministic fake adapter.

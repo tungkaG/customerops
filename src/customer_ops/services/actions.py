@@ -1,0 +1,98 @@
+from __future__ import annotations
+
+from uuid import uuid4
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from customer_ops.config import REFERENCE_DATE
+from customer_ops.database.models import Customer, Order, PendingAction, Refund
+from customer_ops.domain.rules import (
+    address_change_eligibility,
+    cancellation_eligibility,
+    delayed_refund_eligibility,
+)
+from customer_ops.domain.schemas import ActionStatus, ActionType, CustomerTier, DemoContext, OrderStatus, Role
+from customer_ops.services.audit import record_event
+
+
+class ActionService:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def reject(self, action_id: str, context: DemoContext) -> PendingAction:
+        if context.role not in {Role.OPERATOR, Role.MANAGER}:
+            raise PermissionError("An operator context is required.")
+        action = self._get_action(action_id)
+        if action.status == ActionStatus.PENDING:
+            action.status = ActionStatus.REJECTED
+            action.approver = context.actor_id
+            record_event(self.session, actor_type=context.role.value, actor_id=context.actor_id,
+                         event_type="action_rejected", payload={"action_id": action.id}, run_id=action.run_id, ticket_id=action.ticket_id)
+            self.session.commit()
+        return action
+
+    def approve(self, action_id: str, context: DemoContext) -> PendingAction:
+        if context.role not in {Role.OPERATOR, Role.MANAGER}:
+            raise PermissionError("An operator context is required.")
+        action = self._get_action(action_id)
+        if action.status == ActionStatus.EXECUTED:
+            return action
+        if action.status != ActionStatus.PENDING:
+            return action
+        order = self.session.get(Order, action.normalized_arguments["order_id"])
+        if order is None or order.customer_id != action.customer_id or order.version != action.order_version:
+            action.status = ActionStatus.EXPIRED
+            action.failure_reason = "Order state changed before approval."
+            self.session.commit()
+            return action
+        eligibility = self._revalidate(action, order)
+        if not eligibility.allowed:
+            action.status = ActionStatus.EXPIRED
+            action.failure_reason = eligibility.reason
+            self.session.commit()
+            return action
+        if eligibility.required_role == Role.MANAGER.value and context.role is not Role.MANAGER:
+            raise PermissionError("A manager is required for this action.")
+        action.approver = context.actor_id
+        if action.action_type == ActionType.REFUND:
+            existing_refund = self.session.scalar(select(Refund).where(Refund.order_id == order.id))
+            if existing_refund is not None:
+                action.status = ActionStatus.EXPIRED
+                action.failure_reason = "The order already has a recorded refund."
+                self.session.commit()
+                return action
+            self.session.add(Refund(id=str(uuid4()), order_id=order.id, executed_action_id=action.id,
+                                    amount_cents=order.amount_cents, currency=order.currency, status="recorded"))
+            result: dict[str, object] = {"refund_amount_cents": order.amount_cents, "currency": order.currency, "simulated": True}
+        elif action.action_type == ActionType.CANCELLATION:
+            order.status = OrderStatus.CANCELLED.value
+            order.version += 1
+            result = {"order_status": order.status}
+        else:
+            order.shipping_address = action.normalized_arguments["new_address"]
+            order.version += 1
+            result = {"shipping_address": order.shipping_address}
+        action.status = ActionStatus.EXECUTED
+        action.execution_result = result
+        record_event(self.session, actor_type=context.role.value, actor_id=context.actor_id,
+                     event_type="action_executed", payload={"action_id": action.id, "result": result}, run_id=action.run_id, ticket_id=action.ticket_id)
+        self.session.commit()
+        return action
+
+    def _get_action(self, action_id: str) -> PendingAction:
+        action = self.session.get(PendingAction, action_id)
+        if action is None:
+            raise LookupError("Pending action not found.")
+        return action
+
+    def _revalidate(self, action: PendingAction, order: Order):
+        if action.action_type == ActionType.REFUND:
+            customer = self.session.get(Customer, order.customer_id)
+            already_refunded = self.session.scalar(select(Refund).where(Refund.order_id == order.id)) is not None
+            return delayed_refund_eligibility(tier=CustomerTier(customer.tier), status=OrderStatus(order.status),
+                expected_delivery_date=order.expected_delivery_date, reference_date=REFERENCE_DATE,
+                already_refunded=already_refunded, amount_cents=order.amount_cents, currency=order.currency)
+        if action.action_type == ActionType.CANCELLATION:
+            return cancellation_eligibility(OrderStatus(order.status))
+        return address_change_eligibility(OrderStatus(order.status), action.normalized_arguments["new_address"])
