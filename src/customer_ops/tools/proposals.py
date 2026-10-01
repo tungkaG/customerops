@@ -29,14 +29,19 @@ def propose_address_change(session: Session, context: DemoContext, ticket_id: st
 
 
 def _propose(session: Session, context: DemoContext, ticket_id: str, order_id: str, policy_refs: list[str], action_type: ActionType, new_address: dict[str, str] | None) -> PendingAction:
+    # Scope both ticket and order access to the customer established by trusted context.
     customer_id = context.require_customer()
     ticket = session.get(Ticket, ticket_id)
     order = session.scalar(select(Order).where(Order.id == order_id, Order.customer_id == customer_id))
     if ticket is None or ticket.customer_id != customer_id or order is None:
         raise LookupError("Requested record is inaccessible or not found.")
+
+    # A proposal must cite the policy that applies to its requested action.
     expected_ref = {ActionType.REFUND: REFUND_POLICY_ID, ActionType.CANCELLATION: CANCELLATION_POLICY_ID, ActionType.ADDRESS_CHANGE: ADDRESS_POLICY_ID}[action_type]
     if expected_ref not in policy_refs:
         raise ValueError("Applicable policy reference is required.")
+
+    # Evaluate eligibility from database facts; policy text and caller input cannot authorize a write.
     if action_type is ActionType.REFUND:
         customer = session.get(Customer, customer_id)
         refunded = session.scalar(select(Refund).where(Refund.order_id == order.id)) is not None
@@ -47,16 +52,22 @@ def _propose(session: Session, context: DemoContext, ticket_id: str, order_id: s
         eligibility = address_change_eligibility(OrderStatus(order.status), new_address or {})
     if not eligibility.allowed:
         raise ValueError(eligibility.reason)
+
+    # Store normalized arguments so an identical request in the same run can be reused.
     arguments: dict[str, object] = {"order_id": order.id, "policy_refs": sorted(set(policy_refs))}
     if new_address is not None:
         arguments["new_address"] = new_address
     existing = session.scalar(select(PendingAction).where(PendingAction.ticket_id == ticket_id, PendingAction.run_id == (ticket.agent_run_id or "manual"), PendingAction.action_type == action_type.value, PendingAction.status == "pending"))
     if existing is not None and existing.normalized_arguments == arguments:
         return existing
+
+    # Persist a proposal only; business mutations wait for a separate operator approval.
     action = PendingAction(id=str(uuid4()), ticket_id=ticket_id, run_id=ticket.agent_run_id or "manual", customer_id=customer_id,
         action_type=action_type.value, normalized_arguments=arguments, order_version=order.version, policy_version=POLICY_VERSION,
         status="pending", proposer=context.actor_id)
     session.add(action)
+
+    # Record the proposal in the audit trail in the same database transaction.
     record_event(session, actor_type=context.role.value, actor_id=context.actor_id, event_type="action_proposed",
         payload={"action_id": action.id, "action_type": action_type.value}, run_id=action.run_id, ticket_id=ticket_id)
     session.commit()

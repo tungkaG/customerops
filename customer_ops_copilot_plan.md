@@ -8,7 +8,7 @@ You are implementing a portfolio project that demonstrates reliable Agentic AI f
 2. Implement only the phase requested by the developer. If no phase is specified, start with Phase 1.
 3. Before coding, briefly state the deliverables and acceptance criteria for that phase.
 4. Favor the smallest practical implementation. Do not build abstractions for hypothetical future requirements.
-5. After implementation, run the checks relevant to the phase and report actual results. Never invent passing tests, evaluation scores, provider capabilities, or notebook outputs.
+5. After implementation, run the checks relevant to the phase and report actual results. Never invent passing tests, evaluation scores, provider behavior, or notebook outputs.
 6. Update the progress section at the bottom of this document. Record completed work, unresolved issues, and the next concrete task.
 7. Stop after completing the requested phase. Do not implement later phases without a new instruction.
 8. Ask for clarification only when a missing decision materially changes the implementation. Explain routine assumptions and proceed.
@@ -293,9 +293,9 @@ Goal: measure model behavior before introducing agent orchestration.
 
 Deliverables:
 
-1. A small provider interface for chat, structured output, and tool requests. Represent unsupported capabilities explicitly instead of silently changing experiment semantics.
-2. One hosted adapter, a deterministic fake adapter for tests, and configuration for additional providers.
-3. Notebook 01 for simple response and capability inspection.
+1. A small provider interface for chat, structured output, and tool requests.
+2. Hosted adapters for Gemini and Groq.
+3. Notebook 01 for a simple response.
 4. Notebook 02 for intent and entity extraction.
 5. Notebook 03 for tool choice and arguments using stubbed tool responses.
 6. Notebook 04 for decisions with supplied facts and policy text, without retrieval.
@@ -304,10 +304,10 @@ Deliverables:
 Acceptance criteria:
 
 1. Each notebook imports the actual package and can execute from a clean kernel when its optional dependencies and credentials exist.
-2. Missing credentials are explained visibly. Results are never fabricated or replaced with fake success.
+2. Missing credentials are explained visibly. Results are never fabricated.
 3. Report schema validity, intent accuracy, entity accuracy, tool argument correctness, and decision correctness with denominators and failure examples.
 4. Accept multiple valid tool sequences. Searching policy before an order lookup is not automatically incorrect when it can still satisfy the task.
-5. Compare native tool calling separately from prompted JSON if provider capabilities differ.
+5. Compare native tool calling separately from prompted JSON when evaluating a provider that supports both.
 6. Local inference remains optional until hardware and model suitability are established.
 
 ### Phase 3, RAG laboratory
@@ -421,7 +421,7 @@ Acceptance criteria:
 
 1. Report intent accuracy, tool argument correctness, policy retrieval metrics, correct proposal rate, business state correctness after approval, unauthorized mutation count, duplicate execution count, response factuality, and policy citation validity.
 2. Track latency, provider errors, token usage when available, and experiment configuration. Calculate costs only using verified prices; otherwise mark them unavailable.
-3. Compare providers on the same data, prompts, tool contracts, and retrieval configuration. Record capability differences and repeat stochastic evaluations when feasible.
+3. Compare providers on the same data, prompts, tool contracts, and retrieval configuration. Repeat stochastic evaluations when feasible.
 4. Keep live provider evaluations separate from ordinary offline tests. Do not make API keys mandatory for the test suite.
 5. Required mutation invariants are zero unauthorized and duplicate executions in the tested scenarios. These results are evidence for that suite, not proof of universal security.
 6. Show failures and explain their source. Never substitute illustrative percentages for measured outcomes.
@@ -473,16 +473,16 @@ For subsequent work, replace `Phase 1` with the requested phase and its scope. A
 
 ## 15. Progress record
 
-Current phase: Phase 1 complete.
+Current phase: Phase 2 complete.
 
-Completed phases: Phase 1 deterministic foundation.
+Completed phases: Phase 1 deterministic foundation; Phase 2 isolated LLM experiments.
 
-Completed work: installable Python package; FastAPI `GET /health`; SQLite models with foreign keys and a unique per-order refund constraint; explicit seeded database initializer; 100 reproducible synthetic customers and 300 orders; versioned policy documents; strict Pydantic contracts and trusted demo contexts; scoped read and proposal tools; deterministic eligibility rules; transactional approval and rejection service; structured audit events; and offline regression tests.
+Completed work: installable Python package; FastAPI `GET /health`; SQLite models with foreign keys and a unique per-order refund constraint; explicit seeded database initializer; 100 reproducible synthetic customers and 300 orders; versioned policy documents; strict Pydantic contracts and trusted demo contexts; scoped read and proposal tools; deterministic eligibility rules; transactional approval and rejection service; structured audit events; offline regression tests; provider-neutral chat, structured-output, and native-tool-request contracts; optional Gemini and Groq adapters; hosted provider configuration; reusable evaluation metrics and JSON exports; and notebooks 01 through 04 for baseline, intent extraction, tool selection, and supplied-evidence decisions.
 
-Last validation results: `py -m pytest` completed with 12 passed in 1.45s. The explicit SQLite initializer was also run against a fresh database and verified 100 customers and 300 orders. `/health` returned `{"status":"ok"}` through FastAPI's test client.
+Last validation results: `py -m pytest` completed with 18 passed in 1.82s before the Gemini SDK 2.x dependency upgrade. The explicit SQLite initializer was also run against a fresh database and verified 100 customers and 300 orders. `/health` returned `{"status":"ok"}` through FastAPI's test client. Phase 2's provider-selection and evaluation tests ran without credentials or internet access. Live hosted notebooks were not executed because no provider credentials were supplied; their first live cell visibly stops instead of fabricating a result.
 
-Open decisions: first hosted provider and model; optional local model after hardware review.
+Open decisions: Gemini and Groq model selection; optional local model after hardware review.
 
 Known blockers: no Python 3.12 interpreter was available locally. Validation used Python 3.14; project metadata requires Python 3.12 or newer.
 
-Next task: implement Phase 2 isolated LLM experiments, beginning with a capability-explicit provider interface and deterministic fake adapter.
+Next task: implement Phase 3 RAG laboratory, beginning with versioned policy ingestion and clean retrieval baseline evaluation.

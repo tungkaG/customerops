@@ -1,0 +1,7 @@
+do a loop of 10 llm calls and see whether its correct
+
+intent classification (later we want to make discete intents, such as [refund, cancel, ..])
+tool calls: make more tools and see if llm can:
+    1. find the right tool
+    2. dont use any tool
+    3. use multiple tools?

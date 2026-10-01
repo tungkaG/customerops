@@ -1,0 +1,1 @@
+"""Provider-neutral contracts for isolated LLM experiments."""

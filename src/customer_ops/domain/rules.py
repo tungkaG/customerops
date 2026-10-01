@@ -6,6 +6,7 @@ from datetime import date
 from customer_ops.domain.schemas import CustomerTier, OrderStatus
 
 
+# Version and identifiers bind deterministic rules to the policy documents used as supporting evidence.
 POLICY_VERSION = "2026-01"
 REFUND_POLICY_ID = "POL-REFUND-DELAYED"
 CANCELLATION_POLICY_ID = "POL-CANCELLATION"
@@ -14,6 +15,7 @@ ADDRESS_POLICY_ID = "POL-ADDRESS-CHANGE"
 
 @dataclass(frozen=True)
 class Eligibility:
+    # A rule outcome explains whether an action is permitted and, when allowed, who may approve it.
     allowed: bool
     reason: str
     required_role: str | None = None
@@ -29,23 +31,33 @@ def delayed_refund_eligibility(
     amount_cents: int,
     currency: str,
 ) -> Eligibility:
+    # Accept enum values or their stored strings, then apply the policy using normalized values.
     tier = CustomerTier(tier)
     status = OrderStatus(status)
+
+    # A delayed-delivery refund only applies to delayed orders that have not already been refunded.
     if status is not OrderStatus.DELAYED:
         return Eligibility(False, "Delayed-delivery refunds require a delayed order.")
     if already_refunded:
         return Eligibility(False, "The order already has a recorded refund.")
+
+    # This synthetic demo supports refunds only for EUR orders.
     if currency != "EUR":
         return Eligibility(False, "Only EUR demo orders are supported.")
+
+    # Gold customers qualify after more than 7 days; Standard customers after more than 14 days.
     delay_days = (reference_date - expected_delivery_date).days
     threshold = 7 if tier is CustomerTier.GOLD else 14
     if delay_days <= threshold:
         return Eligibility(False, f"Delay must be strictly greater than {threshold} days.")
+
+    # Refunds above EUR 500 require manager approval; smaller eligible refunds need an operator.
     required_role = "manager" if amount_cents > 50_000 else "operator"
     return Eligibility(True, "Eligible for a full simulated delayed-delivery refund.", required_role)
 
 
 def cancellation_eligibility(status: OrderStatus) -> Eligibility:
+    # Cancellations are possible only before shipment, while the order is still processing.
     status = OrderStatus(status)
     if status is not OrderStatus.PROCESSING:
         return Eligibility(False, "Only processing orders can be cancelled.")
@@ -53,10 +65,13 @@ def cancellation_eligibility(status: OrderStatus) -> Eligibility:
 
 
 def address_change_eligibility(status: OrderStatus, address: dict[str, str]) -> Eligibility:
+    # Address changes use the same pre-shipment restriction as cancellations.
     status = OrderStatus(status)
     required_keys = {"line1", "city", "postal_code", "country"}
     if status is not OrderStatus.PROCESSING:
         return Eligibility(False, "Only processing orders can have their address changed.")
+
+    # The proposal must contain every required structured address field with a non-empty value.
     if set(address) != required_keys or not all(address.values()):
         return Eligibility(False, "A complete structured address is required.")
     return Eligibility(True, "Eligible for address change with operator approval.", "operator")

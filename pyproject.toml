@@ -19,6 +19,19 @@ dev = [
     "httpx>=0.27,<1",
     "pytest>=8,<9",
 ]
+notebooks = [
+    "jupyterlab>=4,<5",
+]
+hosted = [
+    "google-genai>=2,<3",
+    "groq>=0.30,<1",
+]
+gemini = [
+    "google-genai>=2,<3",
+]
+groq = [
+    "groq>=0.30,<1",
+]
 
 [project.scripts]
 customer-ops-init-db = "customer_ops.database.seed:main"
