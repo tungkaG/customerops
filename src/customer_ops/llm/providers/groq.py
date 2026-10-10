@@ -78,7 +78,7 @@ class GroqProvider(LLMProvider):
         )
         tool_calls = response.choices[0].message.tool_calls or []
         requests = [
-            {"tool_name": call.function.name, "arguments": _string_arguments(call.function.arguments)}
+            {"tool_name": call.function.name, "arguments": _object_arguments(call.function.arguments)}
             for call in tool_calls
         ]
         return ProviderResponse(
@@ -90,16 +90,38 @@ class GroqProvider(LLMProvider):
         )
 
 
-def _messages(messages: Iterable[ChatMessage]) -> list[dict[str, str]]:
-    return [message.model_dump() for message in messages]
+def _messages(messages: Iterable[ChatMessage]) -> list[dict[str, object]]:
+    converted: list[dict[str, object]] = []
+    pending_call_ids: list[str] = []
+    for message in messages:
+        if message.tool_requests:
+            # Tool results follow in request order, so call IDs are paired positionally.
+            pending_call_ids = [f"call_{len(converted)}_{index}" for index, _ in enumerate(message.tool_requests)]
+            converted.append(
+                {
+                    "role": "assistant",
+                    "content": message.content or None,
+                    "tool_calls": [
+                        {
+                            "id": call_id,
+                            "type": "function",
+                            "function": {"name": request.tool_name, "arguments": json.dumps(request.arguments)},
+                        }
+                        for call_id, request in zip(pending_call_ids, message.tool_requests, strict=True)
+                    ],
+                }
+            )
+        elif message.role == "tool":
+            converted.append({"role": "tool", "tool_call_id": pending_call_ids.pop(0), "content": message.content})
+        else:
+            converted.append({"role": message.role, "content": message.content})
+    return converted
 
 
-def _string_arguments(arguments: str) -> dict[str, str]:
+def _object_arguments(arguments: str) -> dict[str, object]:
     parsed = json.loads(arguments)
-    if not isinstance(parsed, dict) or not all(
-        isinstance(key, str) and isinstance(value, str) for key, value in parsed.items()
-    ):
-        raise ValueError("Groq function call arguments must be a string-to-string object.")
+    if not isinstance(parsed, dict) or not all(isinstance(key, str) for key in parsed):
+        raise ValueError("Groq function call arguments must be a JSON object.")
     return parsed
 
 

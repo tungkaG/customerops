@@ -33,7 +33,7 @@ def seed_demo(session: Session, *, seed: int = 20260120) -> None:
         Order(id="order-gold-10-day", customer_id="cust-gold-10-day", amount_cents=19_900, currency="EUR", status="delayed", expected_delivery_date=REFERENCE_DATE - timedelta(days=10), shipping_address=DEFAULT_ADDRESS),
         Order(id="order-standard-10-day", customer_id="cust-standard-10-day", amount_cents=19_900, currency="EUR", status="delayed", expected_delivery_date=REFERENCE_DATE - timedelta(days=10), shipping_address=DEFAULT_ADDRESS),
         Order(id="order-gold-large", customer_id="cust-gold-10-day", amount_cents=50_001, currency="EUR", status="delayed", expected_delivery_date=REFERENCE_DATE - timedelta(days=10), shipping_address=DEFAULT_ADDRESS),
-        Order(id="order-processing", customer_id="cust-gold-10-day", amount_cents=8_500, currency="EUR", status="processing", expected_delivery_date=REFERENCE_DATE + timedelta(days=2), shipping_address=DEFAULT_ADDRESS),
+        Order(id="order-processing-123", customer_id="cust-gold-10-day", amount_cents=8_500, currency="EUR", status="processing", expected_delivery_date=REFERENCE_DATE + timedelta(days=2), shipping_address=DEFAULT_ADDRESS),
     ]
     statuses = ["processing", "shipped", "delayed", "delivered"]
     for index in range(296):

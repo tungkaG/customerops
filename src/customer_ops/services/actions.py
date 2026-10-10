@@ -5,15 +5,10 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from customer_ops.config import REFERENCE_DATE
-from customer_ops.database.models import Customer, Order, PendingAction, Refund
-from customer_ops.domain.rules import (
-    address_change_eligibility,
-    cancellation_eligibility,
-    delayed_refund_eligibility,
-)
-from customer_ops.domain.schemas import ActionStatus, ActionType, CustomerTier, DemoContext, OrderStatus, Role
+from customer_ops.database.models import Order, PendingAction, Refund
+from customer_ops.domain.schemas import ActionStatus, ActionType, DemoContext, OrderStatus, Role
 from customer_ops.services.audit import record_event
+from customer_ops.services.eligibility import check_eligibility
 
 
 class ActionService:
@@ -106,16 +101,6 @@ class ActionService:
 
     def _revalidate(self, action: PendingAction, order: Order):
         # Recompute eligibility from current database facts before executing an approved action.
-        if action.action_type == ActionType.REFUND:
-            customer = self.session.get(Customer, order.customer_id)
-            already_refunded = self.session.scalar(select(Refund).where(Refund.order_id == order.id)) is not None
-
-            # Refund eligibility includes tier, order state, delivery delay, amount, currency, and prior refunds.
-            return delayed_refund_eligibility(tier=CustomerTier(customer.tier), status=OrderStatus(order.status),
-                expected_delivery_date=order.expected_delivery_date, reference_date=REFERENCE_DATE,
-                already_refunded=already_refunded, amount_cents=order.amount_cents, currency=order.currency)
-        if action.action_type == ActionType.CANCELLATION:
-            # Cancellations remain eligible only while the order is processing.
-            return cancellation_eligibility(OrderStatus(order.status))
-        # Address changes remain eligible only while the order is processing and the saved address is complete.
-        return address_change_eligibility(OrderStatus(order.status), action.normalized_arguments["new_address"])
+        return check_eligibility(
+            self.session, ActionType(action.action_type), order, action.normalized_arguments.get("new_address")
+        )

@@ -18,6 +18,39 @@ from customer_ops.llm.experiments import (
 )
 from customer_ops.llm.providers.gemini import GeminiProvider
 from customer_ops.llm.providers.groq import GroqProvider
+from customer_ops.llm.providers.huggingface import _extract_json_text, _parse_tool_calls
+
+
+# An unknown provider name must fail loudly and list the valid choices, including huggingface.
+def test_unknown_provider_name_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    configured_settings = replace(settings, providers=replace(settings.providers, selected_provider="openai"))
+    monkeypatch.setattr("customer_ops.config.settings", configured_settings)
+    with pytest.raises(ValueError, match="huggingface"):
+        configured_provider()
+
+
+# Small local models wrap JSON in prose or code fences; extraction must still find exactly one object.
+# Validation runs from JSON text because the project's strict models reject enum strings given as Python values.
+def test_huggingface_structured_output_extracts_json_from_surrounding_text() -> None:
+    text = 'Sure! ```json\n{"action": "propose_refund", "justification": "Eligible."}\n``` Hope that helps.'
+
+    assert DecisionProposal.model_validate_json(_extract_json_text(text)) == DecisionProposal(
+        action=DecisionAction.PROPOSE_REFUND, justification="Eligible."
+    )
+    with pytest.raises(ValueError, match="no JSON object"):
+        _extract_json_text("I cannot answer that.")
+
+
+# Qwen's native tool-call blocks become ToolRequests, structured arguments are kept, and non-object arguments are rejected.
+def test_huggingface_tool_calls_are_parsed_and_validated() -> None:
+    text = 'Looking it up.\n<tool_call>\n{"name": "get_order", "arguments": {"order_id": "order-gold-10-day"}}\n</tool_call>'
+    nested = '<tool_call>{"name": "x", "arguments": {"new_address": {"city": "Berlin"}}}</tool_call>'
+
+    assert _parse_tool_calls(text) == [{"tool_name": "get_order", "arguments": {"order_id": "order-gold-10-day"}}]
+    assert _parse_tool_calls(nested)[0]["arguments"] == {"new_address": {"city": "Berlin"}}
+    assert _parse_tool_calls("No tool needed.") == []
+    with pytest.raises(ValueError, match="JSON object"):
+        _parse_tool_calls('<tool_call>{"name": "get_order", "arguments": "order-1"}</tool_call>')
 
 
 # Selecting Gemini must not require a Groq credential; the selected provider alone is validated.

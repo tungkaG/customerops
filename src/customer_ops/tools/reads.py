@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from customer_ops.config import POLICY_VERSION
 from customer_ops.database.models import Customer, Order, Ticket
 from customer_ops.domain.schemas import DemoContext, PolicyHit
+from customer_ops.retrieval.service import PolicyRetriever, default_policy_retriever
 
 
 def get_customer(session: Session, context: DemoContext) -> Customer:
@@ -29,12 +27,19 @@ def get_ticket(session: Session, context: DemoContext, ticket_id: str) -> Ticket
     return session.scalar(select(Ticket).where(Ticket.id == ticket_id, Ticket.customer_id == context.require_customer()))
 
 
-def search_policy(_context: DemoContext, query: str, category: str | None = None) -> list[PolicyHit]:
-    policy_dir = Path(__file__).resolve().parents[3] / "data" / "policies"
-    hits: list[PolicyHit] = []
-    for path in policy_dir.glob("*.md"):
-        text = path.read_text(encoding="utf-8")
-        policy_id, policy_category = path.stem.split("_", maxsplit=1)
-        if (category is None or category == policy_category) and query.lower() in text.lower():
-            hits.append(PolicyHit(policy_id=policy_id, category=policy_category, version=POLICY_VERSION, text=text))
-    return hits
+def search_policy(
+    _context: DemoContext, query: str, category: str | None = None, *, retriever: PolicyRetriever | None = None
+) -> list[PolicyHit]:
+    hits = (retriever or default_policy_retriever()).search(query, category=category)
+    return [
+        PolicyHit(
+            policy_id=hit.chunk.metadata.document_id,
+            chunk_id=hit.chunk.chunk_id,
+            category=hit.chunk.metadata.category,
+            version=hit.chunk.metadata.version,
+            text=hit.chunk.text,
+            citation=hit.citation,
+            score=hit.score,
+        )
+        for hit in hits
+    ]

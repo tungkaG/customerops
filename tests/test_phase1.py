@@ -69,22 +69,22 @@ def test_authorized_approval_executes_once_and_records_exact_amount(session: Ses
 
 # Tests that rejecting a pending cancellation leaves the order's business state unchanged.
 def test_rejection_leaves_business_records_unchanged(session: Session) -> None:
-    action = propose_cancellation(session, GOLD, "ticket-processing", "order-processing", ["POL-CANCELLATION"])
+    action = propose_cancellation(session, GOLD, "ticket-processing", "order-processing-123", ["POL-CANCELLATION"])
     rejected = ActionService(session).reject(action.id, OPERATOR)
     assert rejected.status == "rejected"
-    assert session.get(Order, "order-processing").status == "processing"
+    assert session.get(Order, "order-processing-123").status == "processing"
 
 
 # Tests that approval detects an order changed after proposal and expires the action without applying another write.
 def test_stale_proposal_expires_without_write(session: Session) -> None:
-    action = propose_cancellation(session, GOLD, "ticket-processing", "order-processing", ["POL-CANCELLATION"])
-    order = session.get(Order, "order-processing")
+    action = propose_cancellation(session, GOLD, "ticket-processing", "order-processing-123", ["POL-CANCELLATION"])
+    order = session.get(Order, "order-processing-123")
     order.status = "shipped"
     order.version += 1
     session.commit()
     expired = ActionService(session).approve(action.id, OPERATOR)
     assert expired.status == "expired"
-    assert session.get(Order, "order-processing").status == "shipped"
+    assert session.get(Order, "order-processing-123").status == "shipped"
 
 
 # Tests that refunds over EUR 500 cannot be approved by an operator but can be executed by a manager.

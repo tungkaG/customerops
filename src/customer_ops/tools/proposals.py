@@ -5,14 +5,12 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from customer_ops.config import POLICY_VERSION, REFERENCE_DATE
-from customer_ops.database.models import Customer, Order, PendingAction, Refund, Ticket
-from customer_ops.domain.rules import (
-    ADDRESS_POLICY_ID, CANCELLATION_POLICY_ID, REFUND_POLICY_ID,
-    address_change_eligibility, cancellation_eligibility, delayed_refund_eligibility,
-)
-from customer_ops.domain.schemas import ActionType, Address, DemoContext, OrderStatus
+from customer_ops.config import POLICY_VERSION
+from customer_ops.database.models import Order, PendingAction, Ticket
+from customer_ops.domain.rules import ADDRESS_POLICY_ID, CANCELLATION_POLICY_ID, REFUND_POLICY_ID
+from customer_ops.domain.schemas import ActionType, Address, DemoContext
 from customer_ops.services.audit import record_event
+from customer_ops.services.eligibility import check_eligibility
 
 
 def propose_refund(session: Session, context: DemoContext, ticket_id: str, order_id: str, policy_refs: list[str]) -> PendingAction:
@@ -42,14 +40,7 @@ def _propose(session: Session, context: DemoContext, ticket_id: str, order_id: s
         raise ValueError("Applicable policy reference is required.")
 
     # Evaluate eligibility from database facts; policy text and caller input cannot authorize a write.
-    if action_type is ActionType.REFUND:
-        customer = session.get(Customer, customer_id)
-        refunded = session.scalar(select(Refund).where(Refund.order_id == order.id)) is not None
-        eligibility = delayed_refund_eligibility(tier=customer.tier, status=OrderStatus(order.status), expected_delivery_date=order.expected_delivery_date, reference_date=REFERENCE_DATE, already_refunded=refunded, amount_cents=order.amount_cents, currency=order.currency)
-    elif action_type is ActionType.CANCELLATION:
-        eligibility = cancellation_eligibility(OrderStatus(order.status))
-    else:
-        eligibility = address_change_eligibility(OrderStatus(order.status), new_address or {})
+    eligibility = check_eligibility(session, action_type, order, new_address)
     if not eligibility.allowed:
         raise ValueError(eligibility.reason)
 

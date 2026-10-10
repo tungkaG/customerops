@@ -1,0 +1,9 @@
+{
+  "POL-ADDRESS-CHANGE_address.md": {"source_type": "policy", "trusted": true, "status": "active"},
+  "POL-CANCELLATION_cancellation.md": {"source_type": "policy", "trusted": true, "status": "active"},
+  "POL-REFUND-DELAYED_refund.md": {"source_type": "policy", "trusted": true, "status": "active"},
+  "random1.md": {"source_type": "marketing", "trusted": false, "status": "active"},
+  "random2.md": {"source_type": "policy", "trusted": true, "status": "obsolete"},
+  "random3.md": {"source_type": "internal_guideline", "trusted": false, "status": "active"},
+  "random4.md": {"source_type": "untrusted_document", "trusted": false, "status": "active"}
+}

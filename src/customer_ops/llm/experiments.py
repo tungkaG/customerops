@@ -56,7 +56,12 @@ def evaluate_entities(cases: list[tuple[str, IntentResult, IntentResult]]) -> Ev
 
 
 def evaluate_decisions(cases: list[tuple[str, DecisionProposal, DecisionProposal]]) -> EvaluationResult:
-    return _evaluate_fields("decision_correctness", cases, ("action", "order_id", "proposed_address", "policy_references"))
+    return _evaluate_fields("decision_correctness", cases, ("action", "order_id", "proposed_address", "rejected_action", "policy_references"))
+
+
+def evaluate_requests(cases: list[tuple[str, BaseModel, BaseModel]]) -> EvaluationResult:
+    """Score request identification (IdentifiedRequest) on what was asked and supplied, apart from any decision."""
+    return _evaluate_fields("request_identification", cases, ("capabilities", "order_ids", "new_address"))
 
 
 def evaluate_tool_sequences(

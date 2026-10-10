@@ -17,16 +17,19 @@ class MissingProviderCredentialError(RuntimeError):
 
 
 def configured_provider() -> LLMProvider:
-    """Create the hosted provider selected by the trusted process environment."""
+    """Create the provider selected by the trusted process environment."""
     from customer_ops.config import settings
     from customer_ops.llm.providers.gemini import GeminiProvider
     from customer_ops.llm.providers.groq import GroqProvider
+    from customer_ops.llm.providers.huggingface import HuggingFaceProvider
 
     if settings.providers.selected_provider == "gemini":
         return GeminiProvider.from_environment()
     if settings.providers.selected_provider == "groq":
         return GroqProvider.from_environment()
-    raise ValueError("CUSTOMER_OPS_LLM_PROVIDER must be either 'gemini' or 'groq'.")
+    if settings.providers.selected_provider == "huggingface":
+        return HuggingFaceProvider.from_environment()
+    raise ValueError("CUSTOMER_OPS_LLM_PROVIDER must be 'gemini', 'groq', or 'huggingface'.")
 
 
 class LLMProvider(ABC):

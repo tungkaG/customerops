@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
 
 
 class StrictModel(BaseModel):
@@ -52,6 +52,18 @@ class DecisionAction(StrEnum):
     ESCALATE = "escalate"
 
 
+# Every propose_* action is an operation a customer can request. Rejections name the operation they refuse.
+OPERATION_ACTIONS = tuple(action for action in DecisionAction if action.value.startswith("propose_"))
+OperationAction = StrEnum("OperationAction", {action.name: action.value for action in OPERATION_ACTIONS})
+
+
+class Address(StrictModel):
+    line1: str = Field(min_length=1, max_length=120)
+    city: str = Field(min_length=1, max_length=80)
+    postal_code: str = Field(min_length=1, max_length=20)
+    country: str = Field(min_length=2, max_length=2)
+
+
 class IntentResult(StrictModel):
     intent: str
     order_id: str | None = None
@@ -61,16 +73,26 @@ class IntentResult(StrictModel):
 
 class ToolRequest(StrictModel):
     tool_name: str
-    arguments: dict[str, str]
+    # Structured values such as addresses are allowed; each tool validates its own argument schema.
+    arguments: dict[str, JsonValue]
 
 
 class DecisionProposal(StrictModel):
     action: DecisionAction
     order_id: str | None = None
-    proposed_address: str | None = None
+    proposed_address: Address | None = None
+    rejected_action: OperationAction | None = Field(
+        default=None, description="Required with reject_request: the operation that the customer asked for and is refused."
+    )
     policy_references: list[str] = Field(default_factory=list)
     justification: str = Field(min_length=1, max_length=500)
     missing_information: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _rejection_names_its_operation(self) -> DecisionProposal:
+        if (self.action is DecisionAction.REJECT_REQUEST) != (self.rejected_action is not None):
+            raise ValueError("rejected_action is required with reject_request and not allowed with any other action.")
+        return self
 
 
 class AgentResult(StrictModel):
@@ -92,15 +114,11 @@ class DemoContext(StrictModel):
         return self.customer_id
 
 
-class Address(StrictModel):
-    line1: str = Field(min_length=1, max_length=120)
-    city: str = Field(min_length=1, max_length=80)
-    postal_code: str = Field(min_length=1, max_length=20)
-    country: str = Field(min_length=2, max_length=2)
-
-
 class PolicyHit(StrictModel):
     policy_id: str
+    chunk_id: str
     category: str
     version: str
     text: str
+    citation: str
+    score: float

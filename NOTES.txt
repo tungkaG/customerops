@@ -1,0 +1,1 @@
+remove policy registry if loop works. bcs clean RAG does not rely on these labels

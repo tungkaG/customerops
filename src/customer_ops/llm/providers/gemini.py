@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Iterable
 from typing import TypeVar
 
@@ -77,7 +78,7 @@ class GeminiProvider(LLMProvider):
             ],
         )
         requests = [
-            {"tool_name": step.name, "arguments": _string_arguments(step.arguments)}
+            {"tool_name": step.name, "arguments": _object_arguments(step.arguments)}
             for step in response.steps
             if step.type == "function_call"
         ]
@@ -90,12 +91,20 @@ class GeminiProvider(LLMProvider):
 
 
 def _prompt(messages: Iterable[ChatMessage]) -> str:
-    return "\n\n".join(f"{message.role.upper()}: {message.content}" for message in messages)
+    # Tool calls and results are flattened into text, like every other turn in this adapter's single-prompt format.
+    parts = []
+    for message in messages:
+        if message.tool_requests:
+            calls = "; ".join(f"{request.tool_name}({json.dumps(request.arguments)})" for request in message.tool_requests)
+            parts.append(f"ASSISTANT TOOL CALLS: {calls}")
+        elif message.role == "tool":
+            parts.append(f"TOOL RESULT ({message.tool_name}): {message.content}")
+        else:
+            parts.append(f"{message.role.upper()}: {message.content}")
+    return "\n\n".join(parts)
 
 
-def _string_arguments(arguments: object) -> dict[str, str]:
-    if not isinstance(arguments, dict) or not all(
-        isinstance(key, str) and isinstance(value, str) for key, value in arguments.items()
-    ):
-        raise ValueError("Gemini function call arguments must be a string-to-string object.")
+def _object_arguments(arguments: object) -> dict[str, object]:
+    if not isinstance(arguments, dict) or not all(isinstance(key, str) for key in arguments):
+        raise ValueError("Gemini function call arguments must be a JSON object.")
     return arguments
