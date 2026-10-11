@@ -1,17 +1,21 @@
-from __future__ import annotations
+import os
+from pathlib import Path
 
 import pytest
-from sqlalchemy.orm import Session
 
-from customer_ops.database.seed import seed_demo
-from customer_ops.database.session import initialize_database, make_engine, make_session_factory
+os.environ.setdefault("HF_HUB_OFFLINE", "1")
+
+from customer_ops.retrieval import PolicyIndex  # noqa: E402
+from customer_ops.tools import Toolbox  # noqa: E402
+
+DATA = Path(__file__).resolve().parents[1] / "data"
+
+
+@pytest.fixture(scope="session")
+def policies() -> PolicyIndex:
+    return PolicyIndex(DATA / "policies")
 
 
 @pytest.fixture
-def session() -> Session:
-    engine = make_engine("sqlite://")
-    initialize_database(engine)
-    factory = make_session_factory(engine)
-    with factory() as database_session:
-        seed_demo(database_session)
-        yield database_session
+def toolbox(policies) -> Toolbox:
+    return Toolbox(DATA / "orders.json", policies)

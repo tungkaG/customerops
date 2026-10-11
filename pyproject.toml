@@ -4,45 +4,20 @@ build-backend = "hatchling.build"
 
 [project]
 name = "customer-ops"
-version = "0.1.0"
-description = "Deterministic customer support operations demo"
+version = "0.2.0"
+description = "Minimal autonomous customer support experiment"
 requires-python = ">=3.12"
 dependencies = [
-    "fastapi>=0.115,<1",
-    "pydantic>=2.8,<3",
-    "sqlalchemy>=2.0,<3",
-    "faker>=30,<40",
-    "langgraph>=1,<2",
+    "sentence-transformers>=3,<6",
+    "transformers>=4.56,<6",
+    "torch>=2.4,<3",
+    "python-dotenv>=1,<2",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "httpx>=0.27,<1",
     "pytest>=8,<9",
 ]
-notebooks = [
-    "jupyterlab>=4,<5",
-]
-hosted = [
-    "google-genai>=2,<3",
-    "groq>=0.30,<1",
-]
-gemini = [
-    "google-genai>=2,<3",
-]
-groq = [
-    "groq>=0.30,<1",
-]
-retrieval = [
-    "sentence-transformers>=3,<6",
-]
-huggingface = [
-    "transformers>=4.56,<6",
-    "torch>=2.4,<3",
-]
-
-[project.scripts]
-customer-ops-init-db = "customer_ops.database.seed:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

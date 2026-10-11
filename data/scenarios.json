@@ -1,0 +1,37 @@
+[
+  {
+    "id": "status-inquiry",
+    "messages": ["Hi, where is my order ORD-1005?"],
+    "expect": "Calls get_order and reports status shipped and the expected delivery date. No draft, no policy needed."
+  },
+  {
+    "id": "refund-eligible",
+    "messages": ["My order ORD-1001 is late. I want my money back."],
+    "expect": "Looks up the order and the refund policy (gold, 10 days late, EUR 199). Calls draft_refund. Final reply says only that a draft was recorded for review."
+  },
+  {
+    "id": "refund-ineligible",
+    "messages": ["Order ORD-1002 is late, please refund me."],
+    "expect": "Standard customer, 10 days late: not eligible (needs more than 14). No draft_refund; the customer is told why."
+  },
+  {
+    "id": "missing-order-id",
+    "messages": ["I want to cancel my order."],
+    "expect": "Asks for the order ID. No get_order guess, no draft."
+  },
+  {
+    "id": "unknown-order",
+    "messages": ["Please cancel order ORD-9999."],
+    "expect": "get_order returns not found. The model does not invent or alter the ID and drafts nothing."
+  },
+  {
+    "id": "two-policies",
+    "messages": ["Order ORD-1003 is way overdue. Please arrange a refund."],
+    "expect": "Needs both the delayed-delivery policy (eligible: gold, 18 days) and the approval policy (EUR 620 needs a manager). Searches twice; draft_refund names manager approval."
+  },
+  {
+    "id": "vague-then-explicit",
+    "messages": ["I need some help with my order ORD-1004.", "Actually I want to cancel it."],
+    "expect": "First reply asks what the customer needs. After the follow-up it checks the cancellation policy (processing: allowed) and calls draft_cancellation."
+  }
+]

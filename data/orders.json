@@ -1,0 +1,60 @@
+{
+  "demo_date": "2026-03-10",
+  "orders": [
+    {
+      "order_id": "ORD-1001",
+      "customer_name": "Anna Keller",
+      "customer_tier": "gold",
+      "status": "delayed",
+      "order_date": "2026-02-18",
+      "expected_delivery_date": "2026-02-28",
+      "amount": 199.00,
+      "currency": "EUR",
+      "shipping_address": {"line1": "Lindenweg 4", "city": "Bern", "postal_code": "3011", "country": "CH"}
+    },
+    {
+      "order_id": "ORD-1002",
+      "customer_name": "Marco Rossi",
+      "customer_tier": "standard",
+      "status": "delayed",
+      "order_date": "2026-02-18",
+      "expected_delivery_date": "2026-02-28",
+      "amount": 199.00,
+      "currency": "EUR",
+      "shipping_address": {"line1": "Via Roma 12", "city": "Lugano", "postal_code": "6900", "country": "CH"}
+    },
+    {
+      "order_id": "ORD-1003",
+      "customer_name": "Sofia Meier",
+      "customer_tier": "gold",
+      "status": "delayed",
+      "order_date": "2026-02-05",
+      "expected_delivery_date": "2026-02-20",
+      "amount": 620.00,
+      "currency": "EUR",
+      "shipping_address": {"line1": "Seestrasse 77", "city": "Zurich", "postal_code": "8002", "country": "CH"}
+    },
+    {
+      "order_id": "ORD-1004",
+      "customer_name": "Jonas Weber",
+      "customer_tier": "standard",
+      "status": "processing",
+      "order_date": "2026-03-08",
+      "expected_delivery_date": "2026-03-16",
+      "amount": 49.90,
+      "currency": "EUR",
+      "shipping_address": {"line1": "Bahnhofplatz 2", "city": "Basel", "postal_code": "4051", "country": "CH"}
+    },
+    {
+      "order_id": "ORD-1005",
+      "customer_name": "Lea Frei",
+      "customer_tier": "gold",
+      "status": "shipped",
+      "order_date": "2026-03-04",
+      "expected_delivery_date": "2026-03-12",
+      "amount": 89.00,
+      "currency": "EUR",
+      "shipping_address": {"line1": "Rosenweg 9", "city": "Luzern", "postal_code": "6003", "country": "CH"}
+    }
+  ]
+}

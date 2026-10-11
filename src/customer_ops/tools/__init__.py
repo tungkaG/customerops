@@ -1,1 +1,0 @@
-"""Allowlisted application tools."""
