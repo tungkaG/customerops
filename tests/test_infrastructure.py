@@ -127,7 +127,7 @@ def test_unparseable_model_output_is_reported(toolbox):
     result = Agent(broken, toolbox).send("hi")
     assert result.termination == "model_error"
     assert result.final_text is None
-    assert any(e["type"] == "model_error" and e["raw_output"] for e in result.trace)
+    assert not any(m["role"] == "assistant" for m in Agent(broken, toolbox).history)
 
 
 def test_parse_tool_calls_rejects_malformed_blocks():

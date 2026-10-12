@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from customer_ops import tracing
 from customer_ops.retrieval import PolicyIndex
 
 DRAFT_PURPOSE = (
@@ -48,8 +49,23 @@ class Toolbox:
             for t in self.tools.values()
         ]
 
-    def run(self, name: str, arguments: Any) -> dict:
-        """Execute one model requested call. Invalid calls return an error and are never corrected."""
+    def run(self, name: str, arguments: Any, call_id: str | None = None) -> dict:
+        """Execute one model requested call and trace it, including unknown tools and invalid arguments."""
+        with tracing.observation(
+            "tool",
+            str(name),
+            input={"tool": name, "call_id": call_id, "arguments": arguments},
+            metadata={"call_id": call_id},
+        ) as observation:
+            result = self._execute(name, arguments)
+            if "error" in result:
+                observation.update(output=result, level="ERROR", status_message=str(result["error"]))
+            else:
+                observation.update(output=result)
+            return result
+
+    def _execute(self, name: str, arguments: Any) -> dict:
+        """Invalid calls return an error and are never corrected."""
         tool = self.tools.get(name)
         if tool is None:
             return {"error": f"Unknown tool '{name}'. Available tools: {', '.join(self.tools)}."}

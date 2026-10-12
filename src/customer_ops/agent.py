@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from customer_ops import tracing
 from customer_ops.model import ModelOutputError, ModelResponse
 from customer_ops.tools import Toolbox
 
@@ -33,53 +35,66 @@ ModelFn = Callable[[list[dict], list[dict]], ModelResponse]
 class RunResult:
     final_text: str | None
     termination: str  # "final_response", "max_turns" or "model_error"
-    trace: list[dict]
     model_calls: int
+    trace_id: str | None = None  # set only when tracing is enabled
 
 
 class Agent:
     """One conversation. The model picks every tool call; this class only executes them and bounds the loop."""
 
     def __init__(
-        self, model: ModelFn, toolbox: Toolbox, system_prompt: str = SYSTEM_PROMPT, max_turns: int = 8
+        self,
+        model: ModelFn,
+        toolbox: Toolbox,
+        system_prompt: str = SYSTEM_PROMPT,
+        max_turns: int = 8,
+        scenario_id: str | None = None,
     ) -> None:
         self.model = model
         self.toolbox = toolbox
         self.max_turns = max_turns
+        self.scenario_id = scenario_id
+        self.session_id = f"{scenario_id or 'chat'}-{uuid.uuid4().hex[:8]}"  # groups all turns of this conversation
         self.history: list[dict] = [{"role": "system", "content": system_prompt}]
 
     def send(self, customer_message: str) -> RunResult:
         """Append a customer message and run until a final response, an error, or the turn budget (per call)."""
-        trace: list[dict] = [{"type": "customer_message", "text": customer_message}]
+        metadata = {"max_turns": self.max_turns}
+        if self.scenario_id:
+            metadata["scenario_id"] = self.scenario_id
+        with tracing.session(self.session_id), tracing.observation(
+            "agent", "agent.send", input={"customer_message": customer_message}, metadata=metadata
+        ) as root:
+            final_text, termination, detail, calls = self._run(customer_message)
+            output = {"final_text": final_text, "termination": termination, "model_calls": calls}
+            if termination == "final_response":
+                root.update(output=output)
+            else:
+                level = "ERROR" if termination == "model_error" else "WARNING"
+                root.update(output=output, level=level, status_message=detail)
+            trace_id = root.trace_id
+        return RunResult(final_text, termination, calls, trace_id)
+
+    def _run(self, customer_message: str) -> tuple[str | None, str, str, int]:
+        """The loop. Returns (final text, termination reason, detail, model calls)."""
         self.history.append({"role": "user", "content": customer_message})
         tools = self.toolbox.definitions()
         calls_made = 0
 
         while True:
             if calls_made >= self.max_turns:
-                return self._finish(trace, None, "max_turns", calls_made, f"Model call budget of {self.max_turns} reached.")
+                return None, "max_turns", f"Model call budget of {self.max_turns} reached.", calls_made
             calls_made += 1
             try:
                 response = self.model(self.history, tools)
             except ModelOutputError as error:
-                trace.append({"type": "model_error", "error": str(error), "raw_output": error.raw_output})
-                return self._finish(trace, None, "model_error", calls_made, str(error))
+                return None, "model_error", str(error), calls_made
 
-            trace.append(
-                {
-                    "type": "model_response",
-                    "text": response.text,
-                    "usage": response.usage,
-                    "prompt": response.prompt,
-                    "raw_output": response.raw_output,
-                }
-            )
             if not response.tool_calls:
                 if not response.text:
-                    trace.append({"type": "model_error", "error": "Model returned no text and no tool calls."})
-                    return self._finish(trace, None, "model_error", calls_made, "Empty model response.")
+                    return None, "model_error", "Model returned no text and no tool calls.", calls_made
                 self.history.append({"role": "assistant", "content": response.text})
-                return self._finish(trace, response.text, "final_response", calls_made, "Model returned a final response.")
+                return response.text, "final_response", "Model returned a final response.", calls_made
 
             self.history.append(
                 {
@@ -92,9 +107,7 @@ class Agent:
                 }
             )
             for call in response.tool_calls:
-                trace.append({"type": "tool_call", "id": call.id, "name": call.name, "arguments": call.arguments})
-                result = self.toolbox.run(call.name, call.arguments)
-                trace.append({"type": "tool_result", "id": call.id, "name": call.name, "result": result})
+                result = self.toolbox.run(call.name, call.arguments, call.id)
                 self.history.append(
                     {
                         "role": "tool",
@@ -103,10 +116,3 @@ class Agent:
                         "content": json.dumps(result, ensure_ascii=False),
                     }
                 )
-
-    @staticmethod
-    def _finish(trace: list[dict], text: str | None, termination: str, calls: int, reason: str) -> RunResult:
-        if text is not None:
-            trace.append({"type": "final_response", "text": text})
-        trace.append({"type": "termination", "reason": termination, "detail": reason})
-        return RunResult(final_text=text, termination=termination, trace=trace, model_calls=calls)
